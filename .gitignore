@@ -1,0 +1,10 @@
+__pycache__
+.vscode
+.DS_Store
+.idea/
+.cache/
+build/
+dist/
+comparisons/
+models/
+*.pyc
