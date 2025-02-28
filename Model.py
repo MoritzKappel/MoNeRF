@@ -4,12 +4,12 @@
 
 import math
 
-import tinycudann as tcnn
 import torch
 from kornia.utils.grid import create_meshgrid3d
 
 import Framework
 from Methods.Base.Model import BaseModel
+import Thirdparty.TinyCudaNN as tcnn
 
 
 @Framework.Configurable.configure(
@@ -51,7 +51,7 @@ class MoNeRFModel(BaseModel):
     def build(self) -> 'MoNeRFModel':
         """Builds the model."""
         # createGrid
-        self.register_buffer('center', torch.Tensor([self.CENTER]))
+        self.register_buffer('center', torch.tensor([self.CENTER]))
         self.register_buffer('xyz_min', -torch.ones(1, 3) * self.SCALE)
         self.register_buffer('xyz_max', torch.ones(1, 3) * self.SCALE)
         self.register_buffer('half_size', (self.xyz_max-self.xyz_min) / 2)

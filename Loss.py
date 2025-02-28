@@ -6,15 +6,15 @@ import torch
 import torchmetrics
 
 from Cameras.utils import RayPropertySlice
-from Losses.Base import BaseLoss
-from Losses.BackgroundEntropy import backgroundEntropy
-from Losses.Distortion import DistortionLoss
-from Losses.Magnitude import magnitudeLoss
+from Optim.Losses.Base import BaseLoss
+from Optim.Losses.BackgroundEntropy import backgroundEntropy
+from Optim.Losses.Distortion import DistortionLoss
+from Optim.Losses.Magnitude import magnitudeLoss
 
 
 class MoNeRFLoss(BaseLoss):
-    def __init__(self, lambda_bg_entropy: float, lambda_flow_magnitude: float, lambda_distortion: float, activate_logging: bool = False) -> None:
-        super().__init__(activate_logging=activate_logging)
+    def __init__(self, lambda_bg_entropy: float, lambda_flow_magnitude: float, lambda_distortion: float) -> None:
+        super().__init__()
         self.addLossMetric('MSE_Color', torch.nn.functional.mse_loss, 1.0)
         self.addLossMetric('Flow_Magnitude', magnitudeLoss, lambda_flow_magnitude)
         self.addLossMetric('Background_Entropy', backgroundEntropy, lambda_bg_entropy)

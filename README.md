@@ -1,67 +1,62 @@
-
 # MoNeRF: Fast Non-Rigid Radiance Fields from Monocularized Data
 
-![Python](https://img.shields.io/static/v1?label=Python&message=3.11&color=success&logo=Python)&nbsp;![OS](https://img.shields.io/static/v1?label=OS&message=Linux/macOS&color=success&logo=Linux)&nbsp;[![License: MIT](https://img.shields.io/badge/License-MIT-success.svg)](https://opensource.org/licenses/MIT)
+### | [Project Page](https://graphics.tu-bs.de/publications/kappel2024fast) | [Paper](https://arxiv.org/abs/2212.01368) | [Video](https://www.youtube.com/watch?v=1L73suob3bU) | [Dataset](https://nextcloud.mpi-klsb.mpg.de/index.php/s/EHtctQJZDWWcfqj) |
+
+Official PyTorch Implementation of 'Fast Non-Rigid Radiance Fields from Monocularized Data'.
 
 <img src='resources/banner.gif' width=1200>
 
-<!-- ### [Website](TODO) | [ArXiv](TODO) | [Video](TODO) | [Data](TODO) <br> -->
+## Changelog
 
-
-Official PyTorch Implementation of 'Fast Non-Rigid Radiance Fields from Monocularized Data'
+- [28.02.25] Updated the code to be compatible with the official [NeRFICG](https://github.com/nerficg-project) project release!
 
 ## Getting Started
-- Clone this repository using:
-```
-git clone https://github.com/MoritzKappel/MoNeRF.git && cd MoNeRF
-```
 
-- Before running our code, you need to install all dependencies listed in *scripts/createCondaEnv.sh* under *# dependencies*, or create a new conda environment by executing the script:
-```
-./scripts/createCondaEnv.sh && conda activate monerf
-```
+This project is built on the [NeRFICG](https://github.com/nerficg-project) framework. Before cloning this repository, ensure the framework is set up:
 
-- To install the necessary custom CUDA kernels, run:
-```
-./scripts/install.py -e VolumeRenderingV2
-```
+- Follow the instructions in the *Getting Started* section of the main [nerficg](https://github.com/nerficg-project/nerficg) repository (tested with commit __c8e258b__, PyTorch 2.5).
+- After setting up the framework, navigate to the top level directory:
+	```shell
+	cd <Path/to/framework/>nerficg
+	```
+- also make sure to activate the correct conda environment
+	```shell
+	conda activate nerficg
+	```
+Now, you can directly add this project as an additional method:
+- clone this repository to the *src/Methods/* directory:
+	```shell
+	git clone git@github.com:MoritzKappel/MoNeRF.git src/Methods/MoNeRF
+	```
+- install all dependencies and CUDA extensions for the new method using:
+	```shell
+	./scripts/install.py -m MoNeRF
+	```
 
-## Creating a Configuration File
-Default configurations for the D-NeRF and MMVA datasets are available in the *configs/* directory.
-To create a custom configuration file, run
-```
-./scripts/createDefaultConfig.py -m MoNeRF -d MMVA -o <my_config>
-```
-and edit the values in *configs/<my_config>.yaml* as needed.
+## Training and Inference
+
+After setup, the *MoNeRF* method is fully compatible with all *NeRFICG* framework scripts in the *scripts/* directory. This includes config file generation (*defaultConfig.py*), training (*train.py*), inference and performance benchmarking (*inference.py*), metric calculation (*generateTables.py*), and live rendering via the GUI (*gui.py*).
+
+For guidance and detailed instruction, please refer to the [main nerficg repository](https://github.com/nerficg-project/nerficg). 
 
 ## Dataset
-You can manually download our MMVA dataset from [here](https://nextcloud.mpi-klsb.mpg.de/index.php/s/EHtctQJZDWWcfqj), or run
+
+To use our MMVA dataset, first [download](https://nextcloud.mpi-klsb.mpg.de/index.php/s/EHtctQJZDWWcfqj) the zipped dataset and unpack it to the *nerficg/dataset* directory.
+Then copy the *MMVA.py* dataloader file to the *nerficg/src/Datasets* directory to make it available to the training and inference scripts.
+
+## License and Citation
+
+This project is licensed under the MIT license (see [LICENSE](LICENSE)).
+
+If you use this code for your research projects, please consider a citation:
+```bibtex
+@article{kappel2024fast,
+  title = {Fast Non-Rigid Radiance Fields from Monocularized Data},
+  author = {Kappel, Moritz and Golyanik, Vladislav and Castillo, Susana  and Theobalt, Christian and Magnor, Marcus},
+  journal = {{IEEE} Transactions on Visualization and Computer Graphics ({TVCG})},
+  doi = {10.1109/{TVCG}.2024.3367431},
+  pages = {1--12},
+  month = {Feb},
+  year = {2024}
+}
 ```
-./scripts/downloadDataset.sh
-```
-to automatically download and unpack the sequences to the *MoNeRF/dataset* directory.
-
-## Training a New Model
-To train a new model from a configuration file, run:
-```
-./scripts/train.py -c configs/<my_config>.yaml
-```
-The resulting images and model checkpoints will be saved to the *output* directory.
-
-
-To train multiple models from a directory or list of configuration files, use the *scripts/sequentialTrain.py* script with the *-d* or *-c* flag respectively.
-
-
-<!-- ## Training visualization
-TODO wandb -->
-
-<!-- ## Citation
-If find this repository useful for your work, please consider citing our [paper](TODO) using the following BibTeX:
-
-```
-TODO
-``` -->
-
-<!-- ## Acknowledgments
-This work was partially funded by the DFG (MA2555/15-1 ``Immersive Digital Reality'') and the ERC Consolidator Grant 4DRepLy (770784). -->
-

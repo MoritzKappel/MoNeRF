@@ -1,10 +1,11 @@
-__pycache__
+*.pyc
+*.aux
+*.egg
+*.so
+*.egg-info
+*.log
 .vscode
 .DS_Store
-.idea/
-.cache/
 build/
 dist/
-comparisons/
-models/
-*.pyc
+__pycache__/

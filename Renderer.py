@@ -2,26 +2,25 @@
 
 """MoNeRF/Renderer.py: MoNeRF renderering functionality."""
 
+from einops import rearrange
+
 import torch
 from torch import Tensor
 
-from einops import rearrange
+import Framework
+from Logging import Logger
 from Datasets.Base import BaseDataset
 from Methods.Base.Renderer import BaseRenderer, BaseRenderingComponent
 from Methods.MoNeRF.Model import MoNeRFModel
 from Methods.Base.Model import BaseModel
 from Cameras.Base import BaseCamera
 from Cameras.utils import RayPropertySlice
-import Framework
-import Implementations
-from Logger import Logger
-
 # Import CUDA extension containing fast rendering routines adapted from kwea123 (https://github.com/kwea123/ngp_pl)
-VolumeRenderingCuda = Implementations.CudaExtensions.getExtension('VolumeRenderingV2')
+import Methods.InstantNGP.CudaExtensions.VolumeRenderingV2 as VolumeRenderingCuda
 
 
 class MoNeRFRayRenderingComponent(BaseRenderingComponent):
-    '''dataparallel rendering a batch of rays'''
+    """dataparallel rendering a batch of rays"""
 
     def __init__(self, model: MoNeRFModel) -> None:
         super().__init__()
@@ -52,7 +51,7 @@ class MoNeRFRayRenderingComponent(BaseRenderingComponent):
         return super(MoNeRFRayRenderingComponent, cls).get(*args)
 
     def queryModel(self, x: Tensor, d: Tensor, t: float, **_) -> tuple[Tensor, Tensor, Tensor]:
-        '''calculate opacity, color and deformations for a set of spatial samples and a single point in time'''
+        """calculate opacity, color and deformations for a set of spatial samples and a single point in time"""
         x = (x - self.model.xyz_min) / (self.model.xyz_max - self.model.xyz_min)
         x_encoded = torch.cat([self.model.deformation_net_encoding(x), x], dim=-1)
         t_encoded = torch.cat([self.model.temporal_basis_net_encoding(torch.tensor([[(t * 0.7) + 0.15]], device=x.device)), torch.tensor([[t]], device=x.device)], dim=-1)
@@ -146,6 +145,9 @@ class MoNeRFRayRenderingComponent(BaseRenderingComponent):
             if isinstance(v, Tensor):
                 kwargs[k] = torch.repeat_interleave(v[rays_a[:, 0]], rays_a[:, 2], 0)
         sigmas, rgbs, delta_x = self.queryModel(xyzs, dirs, timestamp, **kwargs)
+        # gradient scaling by distance
+        # sigmas, rgbs, delta_x = scaleGradientByDistance(sigmas[..., None], rgbs, delta_x, distances=results['ts'][..., None])
+        # sigmas = sigmas.squeeze(-1)
         results['vr_samples'], results['alpha'], results['depth'], results['rgb'], results['ws'] = VolumeRenderingCuda.VolumeRenderer.apply(
             sigmas, rgbs.contiguous(), results['deltas'], results['ts'], rays_a, kwargs.get('T_threshold', 1e-4)
         )
@@ -182,9 +184,9 @@ class MoNeRFRenderer(BaseRenderer):
         )
         return outputs
 
-    def renderImage(self, camera: 'BaseCamera', timestamp: float = None, to_chw: bool = False) -> dict[str, Tensor | None]:
+    def renderImage(self, camera: 'BaseCamera', timestamp: float = None, to_chw: bool = False, benchmark: bool = False) -> dict[str, Tensor | None]:
         """Renders a complete image for the given camera and optional timestamp."""
-        rays: Tensor = camera.generateRays().type(Framework.config.GLOBAL.DEFAULT_TENSOR_TYPE)
+        rays: Tensor = camera.generateRays()
         rendered_rays = self.renderRays(
             rays=rays,
             camera=camera,
@@ -200,7 +202,7 @@ class MoNeRFRenderer(BaseRenderer):
 
     @torch.no_grad()
     def getAllCells(self) -> list[tuple[Tensor, Tensor]]:
-        '''Returns all cells in the occupancy grid'''
+        """Returns all cells in the occupancy grid"""
         indices = VolumeRenderingCuda.morton3D(self.model.grid_coords).long()
         cells = [(indices, self.model.grid_coords)] * self.model.cascades
         return cells
@@ -226,17 +228,16 @@ class MoNeRFRenderer(BaseRenderer):
             coords2 = VolumeRenderingCuda.morton3D_invert(indices2.int())
             # concatenate
             cells += [(torch.cat([indices1, indices2]), torch.cat([coords1, coords2]))]
-
         return cells
 
     @torch.cuda.amp.autocast(enabled=True)
     @torch.no_grad()
     def carveDensityGrid(self, dataset: 'BaseDataset', subtractive: bool = False, use_alpha: bool = False) -> None:
-        '''
+        """
         Carves the occupancy grid using the given dataset camera poses.
         subtractive=False -> keep points visible in at least one camera, True-> point must be visible in all cameras
         use_alpha=True -> use images alpha channel to carve the grid, False -> only camera frustum
-        '''
+        """
         Logger.logInfo(f'carving density grid from camera poses (using alpha masks: {use_alpha})')
         # dataset.train()
         cells = self.getAllCells()
@@ -255,20 +256,20 @@ class MoNeRFRenderer(BaseRenderer):
                 alpha_img = torch.nn.functional.conv2d(camera_properties.alpha[None], torch.ones((1, 1, 3, 3), requires_grad=False),
                                                        bias=None, stride=1, padding=1, dilation=1, groups=1)[0] > 0.0
             for c in range(self.model.cascades):
-                uv, valid = dataset.camera.projectPoint(cell_positions_world[c])
+                uv, valid, _ = dataset.camera.projectPoints(cell_positions_world[c])
                 if alpha_img is not None:
                     uv = torch.round(uv).long()[valid]
                     alpha_values = alpha_img[:, uv[:, 1], uv[:, 0]] > 0.0
                     valid[valid.clone()] = alpha_values
                 remaining_cells[c] = torch.logical_and(remaining_cells[c], valid) if subtractive else torch.logical_or(remaining_cells[c], valid)
         for c in range(self.model.cascades):
-            values = torch.where(torch.nn.functional.conv3d(remaining_cells[c].reshape(1, 1, self.model.RESOLUTION, self.model.RESOLUTION, self.model.RESOLUTION).type(Framework.config.GLOBAL.DEFAULT_TENSOR_TYPE),
+            values = torch.where(torch.nn.functional.conv3d(remaining_cells[c].reshape(1, 1, self.model.RESOLUTION, self.model.RESOLUTION, self.model.RESOLUTION).float(),
                                  torch.ones((1, 1, 3, 3, 3), requires_grad=False), bias=None, stride=1, padding=1, dilation=1, groups=1).flatten() > 0.0, 0.0, -1.0)
             self.model.density_grid[c, cells[c][0]] = values
 
     @torch.no_grad()
     def queryDensityMultitime(self, x: Tensor, t: Tensor, **_) -> Tensor:
-        '''calculate maximum opacity for a set of spatial samples over a set of temporal samples'''
+        """calculate maximum opacity for a set of spatial samples over a set of temporal samples"""
         x = (x - self.model.xyz_min) / (self.model.xyz_max - self.model.xyz_min)
         t_encoded = torch.cat([self.model.temporal_basis_net_encoding((t[:, None] * 0.7) + 0.15), t[:, None]], dim=-1)
         x_encoded = torch.cat([self.model.deformation_net_encoding(x), x], dim=-1)
@@ -297,7 +298,7 @@ class MoNeRFRenderer(BaseRenderer):
     @torch.no_grad()
     @torch.cuda.amp.autocast(enabled=True)
     def updateDensityGrid(self, num_temporal_samples: int, warmup: bool = False, decay: float = 0.95) -> None:
-        '''Updates the density grid analogous to InstantNGP, but using maximum density over temporal samples'''
+        """Updates the density grid analogous to InstantNGP, but using maximum density over temporal samples"""
         density_grid_tmp = torch.zeros_like(self.model.density_grid)
         if warmup:  # during the first steps
             cells = self.getAllCells()

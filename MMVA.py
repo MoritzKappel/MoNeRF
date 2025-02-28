@@ -2,7 +2,7 @@
 
 """
 Datasets/MMVA.py: Provides a dataset class for Monocularized Multi-View Avatars (MMVA) scenes.
-Data available at https://nextcloud.mpi-klsb.mpg.de/index.php/s/EHtctQJZDWWcfqj.
+Data available at TBD.
 """
 
 import json
@@ -13,9 +13,10 @@ import torch
 
 import Framework
 from Cameras.Perspective import PerspectiveCamera
-from Cameras.utils import CameraProperties, CoordinateSystemTransformations
+from Cameras.utils import CameraProperties
 from Datasets.Base import BaseDataset
-from Datasets.utils import applyBGColor, DatasetError, loadImagesParallel
+from Datasets.utils import applyBGColor, loadImagesParallel, \
+                           CameraCoordinateSystemsTransformations, WorldCoordinateSystemTransformations
 
 
 @Framework.Configurable.configure(
@@ -28,7 +29,8 @@ class CustomDataset(BaseDataset):
         super().__init__(
             path,
             PerspectiveCamera(0.01, 1.0),
-            CoordinateSystemTransformations.RIGHT_HAND
+            camera_system=CameraCoordinateSystemsTransformations.RIGHT_HAND,
+            world_system=WorldCoordinateSystemTransformations.XnZY
         )
 
     def load(self) -> dict[str, list[CameraProperties]]:
@@ -41,7 +43,7 @@ class CustomDataset(BaseDataset):
                 with open(metadata_filepath, 'r') as f:
                     metadata_file: dict[str, Any] = json.load(f)
             except IOError:
-                raise DatasetError(f'Invalid dataset metadata file path "{metadata_filepath}"')
+                raise Framework.DatasetError(f'Invalid dataset metadata file path "{metadata_filepath}"')
             # load near/far plane
             if subset == 'train':
                 self.camera.near_plane = metadata_file['near_all']
